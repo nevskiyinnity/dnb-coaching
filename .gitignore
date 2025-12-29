@@ -1,0 +1,7 @@
+# .gitignore
+.env
+node_modules
+dist
+.vercel
+.env*.local
+.data
