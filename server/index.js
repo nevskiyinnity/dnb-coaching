@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import 'dotenv/config'; // Load .env file
 import { Resend } from 'resend';
-import { getAllUsers, addUser, updateUser, deleteUser, generateCode, isCodeValid } from './db.js';
+import { getAllUsers, addUser, updateUser, deleteUser, generateCode, isCodeValid, deleteAllUsers } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +20,16 @@ const RESEND_API_KEY = process.env.VITE_RESEND_API_KEY;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../dist')));
+
+// Debug Middleware
+app.use((req, res, next) => {
+    console.log(`[DEBUG] ${req.method} ${req.url}`, {
+        headers: req.headers,
+        bodyType: typeof req.body,
+        body: req.body
+    });
+    next();
+});
 
 // Helper for admin auth
 const checkAdminAuth = (req, res, next) => {
@@ -93,6 +103,15 @@ app.delete('/api/admin/users', checkAdminAuth, (req, res) => {
         const success = deleteUser(id);
         if (!success) return res.status(404).json({ message: 'User not found' });
         res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+});
+
+app.post('/api/admin/users/reset', checkAdminAuth, (req, res) => {
+    try {
+        const count = deleteAllUsers();
+        res.json({ success: true, count });
     } catch (e) {
         res.status(500).json({ message: e.message });
     }
@@ -177,6 +196,10 @@ app.post('/api/chat', async (req, res) => {
     if (!OPENAI_API_KEY) return res.status(500).json({ message: 'Missing OPENAI_API_KEY' });
 
     try {
+        if (!req.body) {
+            console.error('[CRITICAL] req.body is undefined. Middleware failure?');
+            return res.status(400).json({ message: 'Request body is missing' });
+        }
         const { messages: rawMessages, code, name, lang, validateOnly } = req.body;
 
         // Validation

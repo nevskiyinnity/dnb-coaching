@@ -145,3 +145,8 @@ export function generateCode() {
     }
     return code; // Fallback
 }
+
+export function deleteAllUsers() {
+    const stmt = db.prepare('DELETE FROM users');
+    return stmt.run().changes;
+}

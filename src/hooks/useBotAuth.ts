@@ -47,6 +47,22 @@ export function useBotAuth() {
         }
     }
 
+    function logout() {
+        localStorage.removeItem("bot_user_code");
+        localStorage.removeItem("bot_user_name");
+        localStorage.removeItem("bot_name");
+        localStorage.removeItem("bot_lang");
+        localStorage.removeItem("bot_gamification");
+        localStorage.removeItem("bot_history_v2");
+        localStorage.removeItem("bot_pins");
+
+        setUserCode("");
+        setDbName("");
+        setInputName("");
+        setAuthenticated(false);
+        toast.info("Logged out");
+    }
+
     return {
         userCode,
         dbName,
@@ -56,6 +72,7 @@ export function useBotAuth() {
         authenticated,
         lang,
         setLang,
-        login
+        login,
+        logout
     };
 }

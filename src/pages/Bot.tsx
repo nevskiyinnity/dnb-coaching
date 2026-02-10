@@ -23,7 +23,8 @@ export default function Bot() {
     setInputName,
     lang,
     setLang,
-    login
+    login,
+    logout
   } = useBotAuth();
 
   // Sync Hook removed (handled inside useChat)
@@ -61,8 +62,6 @@ export default function Bot() {
     assistantBlocks,
     pinnedBlocks,
     togglePin,
-    pinnedBlocks,
-    togglePin,
     isPinned,
     synced, // Get synced state from useChat
   } = useChat(userCode, effectiveName, lang);
@@ -95,6 +94,9 @@ export default function Bot() {
               <LangButton active={lang === 'nl'} onClick={() => setLang('nl')}>NL</LangButton>
               <LangButton active={lang === 'en'} onClick={() => setLang('en')}>EN</LangButton>
             </div>
+            <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-destructive">
+              Log Out
+            </Button>
           </div>
         </header>
 
