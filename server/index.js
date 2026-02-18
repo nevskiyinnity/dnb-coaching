@@ -70,6 +70,33 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../dist')));
 
+// --- Rate Limiting ---
+
+const chatRateLimit = new Map();
+const CHAT_RATE_WINDOW = 5 * 60 * 1000; // 5 minutes
+const CHAT_RATE_MAX = 20; // 20 requests per 5 min per code
+const CHAT_RATE_MAX_ENTRIES = 10000;
+
+function checkChatRateLimit(code) {
+    const now = Date.now();
+    // Cleanup expired entries
+    for (const [key, entry] of chatRateLimit.entries()) {
+        if (now - entry.windowStart > CHAT_RATE_WINDOW) chatRateLimit.delete(key);
+    }
+    // Evict if too many
+    if (chatRateLimit.size > CHAT_RATE_MAX_ENTRIES) {
+        const entries = [...chatRateLimit.entries()].sort((a, b) => a[1].windowStart - b[1].windowStart);
+        for (let i = 0; i < entries.length / 2; i++) chatRateLimit.delete(entries[i][0]);
+    }
+    const entry = chatRateLimit.get(code);
+    if (!entry || now - entry.windowStart > CHAT_RATE_WINDOW) {
+        chatRateLimit.set(code, { count: 1, windowStart: now });
+        return false;
+    }
+    entry.count++;
+    return entry.count > CHAT_RATE_MAX;
+}
+
 // --- API Routes ---
 
 // Admin Login — returns JWT
@@ -277,6 +304,10 @@ app.post('/api/chat', async (req, res) => {
         if (!codestr) return res.status(401).json({ message: 'Access code required' });
         const validation = isCodeValid(codestr);
         if (!validation.valid) return res.status(401).json({ message: validation.reason });
+
+        if (checkChatRateLimit(codestr)) {
+            return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+        }
 
         // Format Messages
         const userMessages = Array.isArray(rawMessages)
