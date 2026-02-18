@@ -7,6 +7,7 @@ import 'dotenv/config';
 import { Resend } from 'resend';
 import { getAllUsers, addUser, updateUser, deleteUser, generateCode, isCodeValid, getSetting, updateSetting } from './db.js';
 import { hashPassword, verifyPassword, signToken, checkAdminAuth } from './auth.js';
+import { logger } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -167,7 +168,7 @@ app.post('/api/contact', async (req, res) => {
     }
 
     if (!RESEND_API_KEY) {
-        console.error('VITE_RESEND_API_KEY is not set');
+        logger.error('VITE_RESEND_API_KEY is not set');
         return res.status(500).json({ message: 'Server configuration error' });
     }
 
@@ -187,13 +188,13 @@ app.post('/api/contact', async (req, res) => {
         });
 
         if (error) {
-            console.error('Resend error:', error);
+            logger.error('Resend error', error);
             return res.status(500).json({ message: 'Error sending email', error });
         }
 
         res.json({ message: 'Message sent successfully!', data });
     } catch (e) {
-        console.error('Contact error:', e);
+        logger.error('Contact error', e);
         res.status(500).json({ message: 'An unexpected error occurred.' });
     }
 });
@@ -247,7 +248,7 @@ app.post('/api/chat', async (req, res) => {
 
     try {
         if (!req.body) {
-            console.error('[CRITICAL] req.body is undefined. Middleware failure?');
+            logger.error('[CRITICAL] req.body is undefined. Middleware failure?');
             return res.status(400).json({ message: 'Request body is missing' });
         }
         const { messages: rawMessages, code, name, lang, validateOnly } = req.body;
@@ -325,7 +326,7 @@ app.post('/api/chat', async (req, res) => {
         res.json({ message: content });
 
     } catch (e) {
-        console.error('Chat error:', e);
+        logger.error('Chat error', e);
         res.status(500).json({ message: `Chat error: ${e.message}` });
     }
 });
@@ -337,5 +338,5 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    logger.info(`Server running on port ${PORT}`);
 });
