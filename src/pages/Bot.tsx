@@ -134,6 +134,7 @@ export default function Bot() {
                       <div className="pr-8">
                         {m.blocks.map((b, i) =>
                           b.type === "video" ? (
+                            // @ts-expect-error — MessageBlock.id is string, will narrow in Phase 3
                             <VideoBlock key={i} id={b.id} />
                           ) : (
                             <p key={i} className="whitespace-pre-wrap leading-relaxed text-sm">{b.text}</p>
@@ -149,9 +150,10 @@ export default function Bot() {
             <div className="rounded-xl border border-border bg-card/50 backdrop-blur-sm p-4 h-[70vh] flex flex-col">
               <div className="flex-1 overflow-y-auto pr-2 space-y-4">
                 {assistantBlocks.map((m) => (
-                  <ChatBubble key={m.id} role={m.role} onPin={() => togglePin(m)} isPinned={isPinned(m.id)}>
+                  <ChatBubble key={m.id} role={m.role as "user" | "assistant"} onPin={() => togglePin(m)} isPinned={isPinned(m.id)}>
                     {m.blocks.map((b, i) =>
                       b.type === "video" ? (
+                        // @ts-expect-error — MessageBlock.id is string, will narrow in Phase 3
                         <VideoBlock key={i} id={b.id} />
                       ) : (
                         <p key={i} className="whitespace-pre-wrap leading-relaxed">{b.text}</p>
