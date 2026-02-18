@@ -169,8 +169,13 @@ const checkAdminLoginRateLimit = createRateLimiter(ADMIN_LOGIN_RATE_WINDOW, ADMI
 
 // --- API Routes ---
 
-// Admin Login — returns JWT
+// Admin Login — returns JWT (rate limited: 5 attempts per 15 min per IP)
 app.post('/api/admin/login', async (req, res) => {
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+    if (checkAdminLoginRateLimit(clientIp)) {
+        return res.status(429).json({ success: false, message: 'Too many login attempts. Please try again later.' });
+    }
+
     const { password } = req.body;
     if (!password) {
         return res.status(400).json({ success: false, message: 'Password required' });
