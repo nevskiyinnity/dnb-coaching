@@ -314,6 +314,18 @@ app.post('/api/chat', async (req, res) => {
             ? rawMessages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).map(m => ({ role: m.role, content: m.content }))
             : [];
 
+        const MAX_MESSAGE_LENGTH = 4000;
+        const MAX_MESSAGES = 50;
+
+        if (userMessages.length > MAX_MESSAGES) {
+            return res.status(400).json({ error: `Too many messages. Maximum ${MAX_MESSAGES} allowed.` });
+        }
+        for (const msg of userMessages) {
+            if (typeof msg.content === 'string' && msg.content.length > MAX_MESSAGE_LENGTH) {
+                return res.status(400).json({ error: `Message too long. Maximum ${MAX_MESSAGE_LENGTH} characters.` });
+            }
+        }
+
         // Handle image if present (attach to the last user message or add as new)
         const { image } = req.body;
         if (image && !isValidImageUrl(image)) {
