@@ -1,7 +1,28 @@
-# .gitignore
+# dependencies
+node_modules/
+
+# environment
 .env
-node_modules
-dist
+.env.*
+
+# build
+/dist
+
+# data
+.data/
+
+# debug
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# vercel
 .vercel
-.env*.local
-.data
