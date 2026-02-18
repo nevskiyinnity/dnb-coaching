@@ -18,6 +18,37 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const RESEND_API_KEY = process.env.VITE_RESEND_API_KEY;
 
+// Security headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
+
+// CSRF origin validation for mutation requests
+app.use((req, res, next) => {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+        const origin = req.headers.origin;
+        const host = req.headers.host;
+        if (origin && host) {
+            try {
+                const originHost = new URL(origin).host;
+                if (originHost !== host) {
+                    return res.status(403).json({ error: 'CSRF validation failed: origin mismatch' });
+                }
+            } catch {
+                return res.status(403).json({ error: 'CSRF validation failed: invalid origin' });
+            }
+        }
+        // Allow non-browser requests (curl, etc.) that don't send Origin header
+    }
+    next();
+});
+
 // Middleware
 app.use(cors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:8080'],
