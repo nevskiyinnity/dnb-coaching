@@ -126,31 +126,46 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // --- Rate Limiting ---
+// Generic rate limiter factory. Each limiter uses an in-memory Map with
+// inline cleanup on every check — suitable for serverless where timers
+// may not survive across invocations.
 
-const chatRateLimit = new Map();
-const CHAT_RATE_WINDOW = 5 * 60 * 1000; // 5 minutes
-const CHAT_RATE_MAX = 20; // 20 requests per 5 min per code
-const CHAT_RATE_MAX_ENTRIES = 10000;
+const RATE_LIMIT_MAX_ENTRIES = 10000;
 
-function checkChatRateLimit(code) {
-    const now = Date.now();
-    // Cleanup expired entries
-    for (const [key, entry] of chatRateLimit.entries()) {
-        if (now - entry.windowStart > CHAT_RATE_WINDOW) chatRateLimit.delete(key);
-    }
-    // Evict if too many
-    if (chatRateLimit.size > CHAT_RATE_MAX_ENTRIES) {
-        const entries = [...chatRateLimit.entries()].sort((a, b) => a[1].windowStart - b[1].windowStart);
-        for (let i = 0; i < entries.length / 2; i++) chatRateLimit.delete(entries[i][0]);
-    }
-    const entry = chatRateLimit.get(code);
-    if (!entry || now - entry.windowStart > CHAT_RATE_WINDOW) {
-        chatRateLimit.set(code, { count: 1, windowStart: now });
-        return false;
-    }
-    entry.count++;
-    return entry.count > CHAT_RATE_MAX;
+function createRateLimiter(windowMs, maxRequests) {
+    const store = new Map();
+
+    return function checkRateLimit(key) {
+        const now = Date.now();
+
+        // Inline cleanup: remove all expired entries on every call
+        for (const [k, entry] of store.entries()) {
+            if (now - entry.windowStart > windowMs) store.delete(k);
+        }
+
+        // Evict oldest half if store grows too large (DoS protection)
+        if (store.size > RATE_LIMIT_MAX_ENTRIES) {
+            const entries = [...store.entries()].sort((a, b) => a[1].windowStart - b[1].windowStart);
+            for (let i = 0; i < entries.length / 2; i++) store.delete(entries[i][0]);
+        }
+
+        const entry = store.get(key);
+        if (!entry || now - entry.windowStart > windowMs) {
+            store.set(key, { count: 1, windowStart: now });
+            return false;
+        }
+        entry.count++;
+        return entry.count > maxRequests;
+    };
 }
+
+// Chat rate limit: 20 requests per 5 minutes per access code
+const checkChatRateLimit = createRateLimiter(5 * 60 * 1000, 20);
+
+// Admin login rate limit: 5 attempts per 15 minutes per IP
+const ADMIN_LOGIN_RATE_WINDOW = 15 * 60 * 1000;
+const ADMIN_LOGIN_RATE_MAX = 5;
+const checkAdminLoginRateLimit = createRateLimiter(ADMIN_LOGIN_RATE_WINDOW, ADMIN_LOGIN_RATE_MAX);
 
 // --- API Routes ---
 
