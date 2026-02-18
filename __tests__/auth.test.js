@@ -1,3 +1,8 @@
+// Set JWT_SECRET before auth.js is imported (vi.hoisted runs before vi.mock hoisting)
+vi.hoisted(() => {
+    process.env.JWT_SECRET = 'test-secret';
+});
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
