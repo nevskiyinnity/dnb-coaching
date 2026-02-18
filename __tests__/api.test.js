@@ -442,15 +442,32 @@ describe('escapeHtml (XSS prevention in email templates)', () => {
 // SSRF Prevention: isValidImageUrl (from server/index.js)
 // ---------------------------------------------------------------------------
 describe('isValidImageUrl (SSRF prevention)', () => {
-    // Reimplementing the function from server/index.js for direct testing
+    // Reimplementing the functions from server/index.js for direct testing
+    function isPrivateHostname(hostname) {
+        const host = hostname.replace(/^\[|\]$/g, '');
+        if (host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+        if (host === 'localhost' || host.endsWith('.localhost')) return true;
+        const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+        if (ipv4Match) {
+            const [, a, b, c, d] = ipv4Match.map(Number);
+            if (a === 0 && b === 0 && c === 0 && d === 0) return true;
+            if (a === 127) return true;
+            if (a === 10) return true;
+            if (a === 172 && b >= 16 && b <= 31) return true;
+            if (a === 192 && b === 168) return true;
+            if (a === 169 && b === 254) return true;
+        }
+        return false;
+    }
+
     function isValidImageUrl(url) {
         if (!url || typeof url !== 'string') return false;
-        // Allow base64 data URLs for images only
         if (url.startsWith('data:image/')) return true;
-        // Allow HTTPS URLs only
         try {
             const parsed = new URL(url);
-            return parsed.protocol === 'https:';
+            if (parsed.protocol !== 'https:') return false;
+            if (isPrivateHostname(parsed.hostname)) return false;
+            return true;
         } catch {
             return false;
         }
@@ -538,6 +555,61 @@ describe('isValidImageUrl (SSRF prevention)', () => {
 
     it('rejects dict:// protocol', () => {
         expect(isValidImageUrl('dict://attacker:11111/')).toBe(false);
+    });
+
+    // SSRF: private/internal IP blocking
+    it('rejects localhost (127.0.0.1)', () => {
+        expect(isValidImageUrl('https://127.0.0.1/image.png')).toBe(false);
+    });
+
+    it('rejects localhost (127.0.0.255)', () => {
+        expect(isValidImageUrl('https://127.0.0.255/image.png')).toBe(false);
+    });
+
+    it('rejects 10.x.x.x private range', () => {
+        expect(isValidImageUrl('https://10.0.0.1/image.png')).toBe(false);
+        expect(isValidImageUrl('https://10.255.255.255/image.png')).toBe(false);
+    });
+
+    it('rejects 192.168.x.x private range', () => {
+        expect(isValidImageUrl('https://192.168.0.1/image.png')).toBe(false);
+        expect(isValidImageUrl('https://192.168.1.100/image.png')).toBe(false);
+    });
+
+    it('rejects 172.16.0.0/12 private range', () => {
+        expect(isValidImageUrl('https://172.16.0.1/image.png')).toBe(false);
+        expect(isValidImageUrl('https://172.31.255.255/image.png')).toBe(false);
+    });
+
+    it('allows 172.15.x.x (not in private range)', () => {
+        expect(isValidImageUrl('https://172.15.0.1/image.png')).toBe(true);
+    });
+
+    it('allows 172.32.x.x (not in private range)', () => {
+        expect(isValidImageUrl('https://172.32.0.1/image.png')).toBe(true);
+    });
+
+    it('rejects 169.254.x.x link-local (AWS metadata)', () => {
+        expect(isValidImageUrl('https://169.254.169.254/latest/meta-data/')).toBe(false);
+        expect(isValidImageUrl('https://169.254.0.1/image.png')).toBe(false);
+    });
+
+    it('rejects 0.0.0.0', () => {
+        expect(isValidImageUrl('https://0.0.0.0/image.png')).toBe(false);
+    });
+
+    it('rejects localhost hostname', () => {
+        expect(isValidImageUrl('https://localhost/image.png')).toBe(false);
+        expect(isValidImageUrl('https://sub.localhost/image.png')).toBe(false);
+    });
+
+    it('rejects IPv6 localhost [::1]', () => {
+        expect(isValidImageUrl('https://[::1]/image.png')).toBe(false);
+    });
+
+    it('allows legitimate public HTTPS URLs', () => {
+        expect(isValidImageUrl('https://cdn.example.com/image.png')).toBe(true);
+        expect(isValidImageUrl('https://8.8.8.8/image.png')).toBe(true);
     });
 });
 

@@ -12,6 +12,37 @@ import { logger } from './logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function isPrivateHostname(hostname) {
+    // Remove brackets from IPv6
+    const host = hostname.replace(/^\[|\]$/g, '');
+
+    // IPv6 localhost
+    if (host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+
+    // Obvious hostnames
+    if (host === 'localhost' || host.endsWith('.localhost')) return true;
+
+    // Check for IPv4 patterns (may include port, but URL parsing strips port from hostname)
+    const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+        const [, a, b, c, d] = ipv4Match.map(Number);
+        // 0.0.0.0
+        if (a === 0 && b === 0 && c === 0 && d === 0) return true;
+        // 127.0.0.0/8 (localhost)
+        if (a === 127) return true;
+        // 10.0.0.0/8 (private)
+        if (a === 10) return true;
+        // 172.16.0.0/12 (private)
+        if (a === 172 && b >= 16 && b <= 31) return true;
+        // 192.168.0.0/16 (private)
+        if (a === 192 && b === 168) return true;
+        // 169.254.0.0/16 (link-local / AWS metadata)
+        if (a === 169 && b === 254) return true;
+    }
+
+    return false;
+}
+
 function isValidImageUrl(url) {
     if (!url || typeof url !== 'string') return false;
     // Allow base64 data URLs for images only
@@ -19,7 +50,10 @@ function isValidImageUrl(url) {
     // Allow HTTPS URLs only
     try {
         const parsed = new URL(url);
-        return parsed.protocol === 'https:';
+        if (parsed.protocol !== 'https:') return false;
+        // Block internal/private IPs to prevent SSRF
+        if (isPrivateHostname(parsed.hostname)) return false;
+        return true;
     } catch {
         return false;
     }
